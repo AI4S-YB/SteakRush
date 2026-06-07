@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-debug-apk:
@@ -40,6 +40,43 @@ jobs:
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
+
+      - name: Publish latest debug release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: debug-latest
+          APK_PATH: app/build/outputs/apk/debug/app-debug.apk
+        run: |
+          set -euo pipefail
+
+          cp "$APK_PATH" SteakRush-debug.apk
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f "$RELEASE_TAG" "$GITHUB_SHA"
+          git push --force origin "refs/tags/$RELEASE_TAG"
+
+          NOTES="Automated debug APK built from main.
+
+          Commit: $GITHUB_SHA
+          Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "Latest debug APK" \
+              --notes "$NOTES" \
+              --prerelease \
+              --target "$GITHUB_SHA"
+            gh release upload "$RELEASE_TAG" SteakRush-debug.apk --clobber
+          else
+            gh release create "$RELEASE_TAG" SteakRush-debug.apk \
+              --title "Latest debug APK" \
+              --notes "$NOTES" \
+              --prerelease \
+              --latest=false \
+              --verify-tag
+          fi
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
