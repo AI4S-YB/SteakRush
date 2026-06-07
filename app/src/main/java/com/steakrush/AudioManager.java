@@ -4,6 +4,7 @@ import android.content.Context;
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioTrack;
+import android.media.MediaPlayer;
 import android.os.Build;
 import android.speech.tts.TextToSpeech;
 
@@ -14,6 +15,8 @@ public class AudioManager {
     private static final int SAMPLE_RATE = 22050;
     private static final int BUFFER_SECONDS = 2;
     private static final double TWO_PI = Math.PI * 2.0;
+    private static final float REAL_SIZZLE_MIX = 0.72f;
+    private static final float GENERATED_SIZZLE_MIX = 0.32f;
 
     private final Context appContext;
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -22,10 +25,11 @@ public class AudioManager {
     private TextToSpeech textToSpeech;
     private volatile boolean ttsReady;
     private AudioTrack musicTrack;
+    private MediaPlayer sizzlePlayer;
     private Thread musicThread;
     private int sampleCursor;
     private float musicVolume = 0.28f;
-    private float sizzleVolume = 0.34f;
+    private float sizzleVolume = 0.62f;
     private volatile float sizzleIntensity;
     private volatile int steakDropEffectRequest;
     private volatile int steakLiftEffectRequest;
@@ -37,6 +41,7 @@ public class AudioManager {
     public AudioManager(Context context) {
         this.appContext = context.getApplicationContext();
         initTextToSpeech();
+        initSizzlePlayer();
     }
 
     public void startMusic() {
@@ -59,6 +64,7 @@ public class AudioManager {
     public void pause() {
         paused.set(true);
         stopSpeaking();
+        pauseSizzlePlayer();
         AudioTrack track = musicTrack;
         if (track != null) {
             try {
@@ -72,6 +78,7 @@ public class AudioManager {
     public void resume() {
         paused.set(false);
         startMusic();
+        updateSizzlePlayerVolume();
         AudioTrack track = musicTrack;
         if (track != null) {
             try {
@@ -98,6 +105,7 @@ public class AudioManager {
         }
 
         releaseMusicTrack();
+        releaseSizzlePlayer();
 
         TextToSpeech tts = textToSpeech;
         textToSpeech = null;
@@ -114,10 +122,12 @@ public class AudioManager {
 
     public void setSizzleIntensity(float intensity) {
         sizzleIntensity = Math.max(0f, Math.min(1f, intensity));
+        updateSizzlePlayerVolume();
     }
 
     public void setSizzleVolume(float volume) {
         sizzleVolume = Math.max(0f, Math.min(1f, volume));
+        updateSizzlePlayerVolume();
     }
 
     public void playSteakDrop() {
@@ -180,6 +190,65 @@ public class AudioManager {
                 ttsReady = true;
             }
         });
+    }
+
+    private void initSizzlePlayer() {
+        try {
+            sizzlePlayer = MediaPlayer.create(appContext, R.raw.steak_sizzle);
+            if (sizzlePlayer != null) {
+                sizzlePlayer.setLooping(true);
+                sizzlePlayer.setVolume(0f, 0f);
+            }
+        } catch (RuntimeException ignored) {
+            sizzlePlayer = null;
+        }
+    }
+
+    private void updateSizzlePlayerVolume() {
+        MediaPlayer player = sizzlePlayer;
+        if (player == null) {
+            return;
+        }
+        float intensity = Math.max(0f, Math.min(1f, sizzleIntensity));
+        float volume = paused.get() ? 0f
+                : (float) Math.sqrt(intensity) * sizzleVolume * REAL_SIZZLE_MIX;
+        try {
+            player.setVolume(volume, volume);
+            if (volume > 0.015f) {
+                if (!player.isPlaying()) {
+                    player.start();
+                }
+            } else if (player.isPlaying()) {
+                player.pause();
+            }
+        } catch (IllegalStateException ignored) {
+            releaseSizzlePlayer();
+            initSizzlePlayer();
+        }
+    }
+
+    private void pauseSizzlePlayer() {
+        MediaPlayer player = sizzlePlayer;
+        if (player == null) {
+            return;
+        }
+        try {
+            if (player.isPlaying()) {
+                player.pause();
+            }
+            player.setVolume(0f, 0f);
+        } catch (IllegalStateException ignored) {
+            releaseSizzlePlayer();
+            initSizzlePlayer();
+        }
+    }
+
+    private void releaseSizzlePlayer() {
+        MediaPlayer player = sizzlePlayer;
+        sizzlePlayer = null;
+        if (player != null) {
+            player.release();
+        }
     }
 
     private void runMusicLoop() {
@@ -349,7 +418,7 @@ public class AudioManager {
                 : 0.0;
 
         double shimmer = noise(sample * 5 + 311) * noise(sample / 52 + 73) * 0.035;
-        return (hiss + crackle + shimmer) * smoothedSizzleIntensity * sizzleVolume;
+        return (hiss + crackle + shimmer) * smoothedSizzleIntensity * sizzleVolume * GENERATED_SIZZLE_MIX;
     }
 
     private double quickEnvelope(double age, double attack, double length) {

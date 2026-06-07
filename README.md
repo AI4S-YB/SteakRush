@@ -4,7 +4,7 @@
 
 SteakRush 是一款竖屏 Android 餐厅经营原型游戏。玩家需要同时管理多口煎锅，根据顾客要求把牛排煎到指定熟度，并在顾客耐心耗尽前完成出餐。
 
-项目当前定位是可运行的早期原型：玩法闭环、像素风界面、教学页、暂停菜单、程序化音乐、中文语音提示、自动 APK 构建都已经具备。
+项目当前定位是可运行的早期原型：玩法闭环、像素风界面、教学页、暂停菜单、煎烤音效、程序化音乐、中文语音提示、自动 APK 构建都已经具备。
 
 English summary: SteakRush is a portrait Android restaurant-management game prototype about cooking steaks to customer-requested doneness under time pressure.
 
@@ -43,7 +43,7 @@ English summary: SteakRush is a portrait Android restaurant-management game prot
 - 牛排有双面熟度：橙色代表底面，蓝色代表顶面，翻面会影响两侧熟度均衡。
 - 评分考虑目标熟度、顾客剩余耐心、连击、两面均衡度和完美出餐。
 - Android TextToSpeech 提供中文点单、成功和失败语音反馈。
-- AudioTrack 实时生成循环背景音乐，不需要额外音频文件。
+- 背景音乐由 AudioTrack 实时生成；煎烤底噪使用 CC0 真实音效素材，并叠加程序化入锅/拿起反馈声。
 - 内置教学页、暂停菜单、重新开局入口和调试构建自动发布。
 
 ## 技术实现
@@ -131,7 +131,7 @@ powershell -ExecutionPolicy Bypass -File scripts\start-emulator-test.ps1 -Scale 
 - 像素风游戏界面
 - 教学页
 - 暂停和重新开局
-- 程序化音乐与中文 TTS
+- 真实煎烤底噪、程序化交互音效与中文 TTS
 - Debug APK 自动构建和 Release 上传
 
 计划补充：
