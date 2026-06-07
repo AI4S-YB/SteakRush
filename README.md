@@ -86,6 +86,15 @@ app/build/outputs/apk/debug/app-debug.apk
 powershell -ExecutionPolicy Bypass -File scripts\install-apk.ps1
 ```
 
+如果手机提示“签名不一致”或 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`，说明设备上已有旧签名的 `com.steakrush`。先卸载旧包，再安装新版：
+
+```powershell
+adb uninstall com.steakrush
+powershell -ExecutionPolicy Bypass -File scripts\install-apk.ps1
+```
+
+从本次固定 debug 签名后，本地和 GitHub Actions 生成的 debug APK 会使用同一证书，后续同类 debug 包可以直接覆盖安装。
+
 启动本地 Android 模拟器测试：
 
 ```powershell

@@ -8,5 +8,6 @@ local.properties
 *.aab
 *.keystore
 *.jks
+!config/debug/steakrush-debug.jks
 *.iml
 .idea/

@@ -2,9 +2,20 @@ plugins {
     id "com.android.application"
 }
 
+def steakRushDebugKeystore = rootProject.file("config/debug/steakrush-debug.jks")
+
 android {
     namespace "com.steakrush"
     compileSdk 35
+
+    signingConfigs {
+        debug {
+            storeFile steakRushDebugKeystore
+            storePassword "steakrush-debug"
+            keyAlias "steakrush-debug"
+            keyPassword "steakrush-debug"
+        }
+    }
 
     defaultConfig {
         applicationId "com.steakrush"
