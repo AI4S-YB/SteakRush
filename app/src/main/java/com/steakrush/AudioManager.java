@@ -25,6 +25,10 @@ public class AudioManager {
     private Thread musicThread;
     private int sampleCursor;
     private float musicVolume = 0.28f;
+    private float sizzleVolume = 0.34f;
+    private volatile float sizzleIntensity;
+    private double smoothedSizzleIntensity;
+    private double sizzleLowPass;
 
     public AudioManager(Context context) {
         this.appContext = context.getApplicationContext();
@@ -102,6 +106,14 @@ public class AudioManager {
 
     public void setMusicVolume(float volume) {
         musicVolume = Math.max(0f, Math.min(1f, volume));
+    }
+
+    public void setSizzleIntensity(float intensity) {
+        sizzleIntensity = Math.max(0f, Math.min(1f, intensity));
+    }
+
+    public void setSizzleVolume(float volume) {
+        sizzleVolume = Math.max(0f, Math.min(1f, volume));
     }
 
     public void speakCustomerRequest(String doneness) {
@@ -254,10 +266,40 @@ public class AudioManager {
             double kick = Math.sin(TWO_PI * 78.0 * sampleCursor / SAMPLE_RATE)
                     * envelope(phaseInStep, 0.20) * ((step % 4 == 0) ? 0.34 : 0.0);
 
-            double sample = (bass + chord + melody + hat + kick) * musicVolume;
+            double sample = (bass + chord + melody + hat + kick) * musicVolume
+                    + sizzle(sampleCursor);
             buffer[i] = (short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, sample * Short.MAX_VALUE));
             sampleCursor++;
         }
+    }
+
+    private double sizzle(int sample) {
+        double target = sizzleIntensity;
+        double step = target > smoothedSizzleIntensity ? 0.00028 : 0.00065;
+        if (smoothedSizzleIntensity < target) {
+            smoothedSizzleIntensity = Math.min(target, smoothedSizzleIntensity + step);
+        } else if (smoothedSizzleIntensity > target) {
+            smoothedSizzleIntensity = Math.max(target, smoothedSizzleIntensity - step);
+        }
+        if (smoothedSizzleIntensity <= 0.001) {
+            return 0.0;
+        }
+
+        double white = noise(sample * 17 + 97);
+        sizzleLowPass = sizzleLowPass * 0.88 + white * 0.12;
+        double highPass = white - sizzleLowPass;
+        double panBurble = 0.72 + Math.max(0.0, noise(sample / 360 + 19)) * 0.65;
+        double hiss = highPass * panBurble * 0.16;
+
+        double hotSpot = Math.max(0.0, noise(sample / 96 + 503));
+        double crackleSeed = noise(sample * 23 + 701);
+        double crackleThreshold = 0.91 - smoothedSizzleIntensity * 0.045;
+        double crackle = crackleSeed > crackleThreshold
+                ? (crackleSeed - crackleThreshold) * hotSpot * 1.25
+                : 0.0;
+
+        double shimmer = noise(sample * 5 + 311) * noise(sample / 52 + 73) * 0.035;
+        return (hiss + crackle + shimmer) * smoothedSizzleIntensity * sizzleVolume;
     }
 
     private double chordRootForStep(int step) {

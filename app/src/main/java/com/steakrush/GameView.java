@@ -84,6 +84,7 @@ public class GameView extends View {
             } else {
                 audioManager.startMusic();
             }
+            syncSizzleIntensity();
         }
         invalidate();
     }
@@ -92,6 +93,9 @@ public class GameView extends View {
         lastFrameTime = 0L;
         draggingPan = -1;
         moved = false;
+        if (audioManager != null) {
+            audioManager.setSizzleIntensity(0f);
+        }
     }
 
     public void release() {
@@ -162,6 +166,7 @@ public class GameView extends View {
         }
         if (showTutorial || gamePaused) {
             lastFrameTime = now;
+            syncSizzleIntensity();
             if (showTutorial) {
                 engine.drainEvents();
             }
@@ -173,6 +178,7 @@ public class GameView extends View {
         if (toastTimer > 0f) {
             toastTimer -= dt;
         }
+        syncSizzleIntensity();
         drainAudioEvents();
     }
 
@@ -191,6 +197,39 @@ public class GameView extends View {
         }
     }
 
+    private void syncSizzleIntensity() {
+        if (audioManager == null) {
+            return;
+        }
+        if (showTutorial || gamePaused) {
+            audioManager.setSizzleIntensity(0f);
+            return;
+        }
+
+        int pausedPan = cookingPausedPan();
+        int activeSteaks = 0;
+        float heat = 0f;
+        GameEngine.Pan[] pans = engine.getPans();
+        for (int i = 0; i < pans.length; i++) {
+            GameEngine.Steak steak = pans[i].steak;
+            if (steak == null || i == pausedPan) {
+                continue;
+            }
+            activeSteaks++;
+            heat += 0.55f + GameEngine.cookFraction(steak.averageCook()) * 0.45f;
+            if (steak.isBurned()) {
+                heat += 0.18f;
+            }
+        }
+
+        if (activeSteaks == 0) {
+            audioManager.setSizzleIntensity(0f);
+            return;
+        }
+        float intensity = 0.18f + activeSteaks * 0.11f + heat * 0.17f;
+        audioManager.setSizzleIntensity(Math.min(1f, intensity));
+    }
+
     private void handleUp(float x, float y) {
         if (pauseRect.contains(x, y)) {
             setGamePaused(true);
@@ -200,6 +239,7 @@ public class GameView extends View {
         if (helpRect.contains(x, y)) {
             showTutorial = true;
             lastFrameTime = SystemClock.uptimeMillis();
+            syncSizzleIntensity();
             return;
         }
 
@@ -212,6 +252,7 @@ public class GameView extends View {
             }
             if (trashRect.contains(x, y)) {
                 engine.discardSteak(pan);
+                syncSizzleIntensity();
                 showToast("TRASH");
                 return;
             }
@@ -224,6 +265,7 @@ public class GameView extends View {
                 showToast("FLIP");
             } else {
                 engine.placeSteak(tappedPan);
+                syncSizzleIntensity();
                 showToast("SIZZLE");
             }
         }
@@ -254,6 +296,7 @@ public class GameView extends View {
             } else {
                 audioManager.resume();
             }
+            syncSizzleIntensity();
         }
         invalidate();
     }
@@ -264,6 +307,7 @@ public class GameView extends View {
         toastDetail = "";
         toastTimer = 0f;
         setGamePaused(false);
+        syncSizzleIntensity();
         showToast("RESTART");
     }
 
@@ -272,6 +316,7 @@ public class GameView extends View {
         if (!result.valid) {
             return;
         }
+        syncSizzleIntensity();
         String sign = result.points >= 0 ? "+" : "";
         showToast(result.message + " " + sign + result.points,
                 result.requested.label + "/" + engine.describeCookValue(result.actual)
