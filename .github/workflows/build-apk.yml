@@ -52,27 +52,36 @@ jobs:
 
           cp "$APK_PATH" SteakRush-debug.apk
 
+          VERSION_NAME="$(sed -n 's/.*versionName "\([^"]*\)".*/\1/p' app/build.gradle | head -n 1)"
+          VERSION_CODE="$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' app/build.gradle | head -n 1)"
+
+          {
+            cat docs/release-notes/debug-latest.md
+            echo
+            echo "## 构建信息"
+            echo
+            echo "- Version: ${VERSION_NAME:-unknown} (${VERSION_CODE:-unknown})"
+            echo "- Commit: $GITHUB_SHA"
+            echo "- Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "- APK: SteakRush-debug.apk"
+          } > release-notes.md
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -f "$RELEASE_TAG" "$GITHUB_SHA"
           git push --force origin "refs/tags/$RELEASE_TAG"
 
-          NOTES="Automated debug APK built from main.
-
-          Commit: $GITHUB_SHA
-          Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release edit "$RELEASE_TAG" \
-              --title "Latest debug APK" \
-              --notes "$NOTES" \
+              --title "Latest debug APK (${VERSION_NAME:-unknown})" \
+              --notes-file release-notes.md \
               --prerelease \
               --target "$GITHUB_SHA"
             gh release upload "$RELEASE_TAG" SteakRush-debug.apk --clobber
           else
             gh release create "$RELEASE_TAG" SteakRush-debug.apk \
-              --title "Latest debug APK" \
-              --notes "$NOTES" \
+              --title "Latest debug APK (${VERSION_NAME:-unknown})" \
+              --notes-file release-notes.md \
               --prerelease \
               --latest=false \
               --verify-tag
