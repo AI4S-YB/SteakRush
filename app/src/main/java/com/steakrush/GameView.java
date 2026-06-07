@@ -48,6 +48,7 @@ public class GameView extends View {
     private float downX;
     private float downY;
     private boolean moved;
+    private boolean dragLiftSoundPlayed;
     private boolean showTutorial = true;
     private boolean gamePaused;
     private String toast = "";
@@ -93,6 +94,7 @@ public class GameView extends View {
         lastFrameTime = 0L;
         draggingPan = -1;
         moved = false;
+        dragLiftSoundPlayed = false;
         if (audioManager != null) {
             audioManager.setSizzleIntensity(0f);
         }
@@ -139,6 +141,7 @@ public class GameView extends View {
                 dragX = x;
                 dragY = y;
                 moved = false;
+                dragLiftSoundPlayed = false;
                 draggingPan = findPan(x, y);
                 return true;
             case MotionEvent.ACTION_MOVE:
@@ -146,6 +149,7 @@ public class GameView extends View {
                 dragY = y;
                 if (Math.abs(x - downX) + Math.abs(y - downY) > dp(18f)) {
                     moved = true;
+                    playLiftSoundIfNeeded();
                 }
                 return true;
             case MotionEvent.ACTION_UP:
@@ -153,6 +157,7 @@ public class GameView extends View {
                 handleUp(x, y);
                 draggingPan = -1;
                 moved = false;
+                dragLiftSoundPlayed = false;
                 return true;
             default:
                 return true;
@@ -230,6 +235,15 @@ public class GameView extends View {
         audioManager.setSizzleIntensity(Math.min(1f, intensity));
     }
 
+    private void playLiftSoundIfNeeded() {
+        if (dragLiftSoundPlayed || audioManager == null || draggingPan < 0 || !hasSteak(draggingPan)) {
+            return;
+        }
+        dragLiftSoundPlayed = true;
+        audioManager.playSteakLift();
+        syncSizzleIntensity();
+    }
+
     private void handleUp(float x, float y) {
         if (pauseRect.contains(x, y)) {
             setGamePaused(true);
@@ -264,9 +278,13 @@ public class GameView extends View {
                 engine.flipSteak(tappedPan);
                 showToast("FLIP");
             } else {
-                engine.placeSteak(tappedPan);
-                syncSizzleIntensity();
-                showToast("SIZZLE");
+                if (engine.placeSteak(tappedPan)) {
+                    if (audioManager != null) {
+                        audioManager.playSteakDrop();
+                    }
+                    syncSizzleIntensity();
+                    showToast("SIZZLE");
+                }
             }
         }
     }
@@ -289,6 +307,7 @@ public class GameView extends View {
         gamePaused = paused;
         draggingPan = -1;
         moved = false;
+        dragLiftSoundPlayed = false;
         lastFrameTime = SystemClock.uptimeMillis();
         if (audioManager != null) {
             if (gamePaused) {

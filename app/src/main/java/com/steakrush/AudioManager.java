@@ -27,8 +27,12 @@ public class AudioManager {
     private float musicVolume = 0.28f;
     private float sizzleVolume = 0.34f;
     private volatile float sizzleIntensity;
+    private volatile int steakDropEffectRequest;
+    private volatile int steakLiftEffectRequest;
     private double smoothedSizzleIntensity;
     private double sizzleLowPass;
+    private int steakDropEffectSamples;
+    private int steakLiftEffectSamples;
 
     public AudioManager(Context context) {
         this.appContext = context.getApplicationContext();
@@ -114,6 +118,14 @@ public class AudioManager {
 
     public void setSizzleVolume(float volume) {
         sizzleVolume = Math.max(0f, Math.min(1f, volume));
+    }
+
+    public void playSteakDrop() {
+        steakDropEffectRequest++;
+    }
+
+    public void playSteakLift() {
+        steakLiftEffectRequest++;
     }
 
     public void speakCustomerRequest(String doneness) {
@@ -267,9 +279,47 @@ public class AudioManager {
                     * envelope(phaseInStep, 0.20) * ((step % 4 == 0) ? 0.34 : 0.0);
 
             double sample = (bass + chord + melody + hat + kick) * musicVolume
-                    + sizzle(sampleCursor);
+                    + sizzle(sampleCursor)
+                    + steakEffects(sampleCursor);
             buffer[i] = (short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, sample * Short.MAX_VALUE));
             sampleCursor++;
+        }
+    }
+
+    private double steakEffects(int sample) {
+        consumeEffectRequests();
+
+        double effect = 0.0;
+        if (steakDropEffectSamples > 0) {
+            double age = 1.0 - steakDropEffectSamples / (SAMPLE_RATE * 0.24);
+            double env = quickEnvelope(age, 0.012, 0.24);
+            double snap = softSquare(118.0, sample) * quickEnvelope(age, 0.006, 0.09) * 0.18;
+            double steam = noise(sample * 31 + 407) * env * 0.22;
+            double bright = noise(sample * 9 + 211) * quickEnvelope(age, 0.004, 0.13) * 0.12;
+            effect += snap + steam + bright;
+            steakDropEffectSamples--;
+        }
+
+        if (steakLiftEffectSamples > 0) {
+            double age = 1.0 - steakLiftEffectSamples / (SAMPLE_RATE * 0.13);
+            double env = quickEnvelope(age, 0.006, 0.13);
+            double scrape = (noise(sample * 13 + 89) - sizzleLowPass) * env * 0.12;
+            double tick = triangle(420.0, sample) * quickEnvelope(age, 0.002, 0.055) * 0.08;
+            effect += scrape + tick;
+            steakLiftEffectSamples--;
+        }
+
+        return effect;
+    }
+
+    private void consumeEffectRequests() {
+        if (steakDropEffectRequest > 0) {
+            steakDropEffectRequest = 0;
+            steakDropEffectSamples = (int) (SAMPLE_RATE * 0.24);
+        }
+        if (steakLiftEffectRequest > 0) {
+            steakLiftEffectRequest = 0;
+            steakLiftEffectSamples = (int) (SAMPLE_RATE * 0.13);
         }
     }
 
@@ -300,6 +350,15 @@ public class AudioManager {
 
         double shimmer = noise(sample * 5 + 311) * noise(sample / 52 + 73) * 0.035;
         return (hiss + crackle + shimmer) * smoothedSizzleIntensity * sizzleVolume;
+    }
+
+    private double quickEnvelope(double age, double attack, double length) {
+        if (age < 0.0 || age > length) {
+            return 0.0;
+        }
+        double attackAmp = Math.min(1.0, age / attack);
+        double releaseAmp = Math.max(0.0, 1.0 - age / length);
+        return attackAmp * releaseAmp * releaseAmp;
     }
 
     private double chordRootForStep(int step) {
